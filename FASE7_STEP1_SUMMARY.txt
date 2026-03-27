@@ -1,0 +1,301 @@
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                                                                                ║
+║                    🚀 FASE 7 - STEP 1: DEPLOYMENT INICIAL 🚀                  ║
+║                      Guia Completo para Deploy em Produção                    ║
+║                                                                                ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+════════════════════════════════════════════════════════════════════════════════
+📊 RESUMO DO STEP 1
+════════════════════════════════════════════════════════════════════════════════
+
+Status:               ✅ PRONTO PARA EXECUÇÃO
+Objetivo:            Deploy inicial da aplicação completa
+Duração Estimada:    30-45 minutos
+Dificuldade:         Intermediária
+
+═══════════════════════════════════════════════════════════════════════════════
+📋 ARQUIVOS CRIADOS
+═══════════════════════════════════════════════════════════════════════════════
+
+📄 FASE7_DEPLOYMENT_MONITORING.md
+   └─ Visão geral da Fase 7 (5 steps)
+
+📄 DEPLOYMENT_STEP1.md
+   └─ Guia passo-a-passo completo (300+ linhas)
+   └─ 6 fases: Preparação, VPS, Backend, Frontend, Verificação, Testes
+
+📄 DEPLOYMENT_QUICK_REFERENCE.md
+   └─ Guia rápido com comandos principais
+   └─ Health checks, troubleshooting, URLs importantes
+
+🔧 scripts/health-check.sh
+   └─ Script automático de verificação de saúde
+   └─ 9 categorias de checks
+   └─ Uso: chmod +x scripts/health-check.sh && ./scripts/health-check.sh
+
+🔧 scripts/initial-deploy.sh
+   └─ Script automático de deployment
+   └─ 6 fases: Verificação, Testes, Build, Deploy, Verificação
+   └─ Uso: ./scripts/initial-deploy.sh [opções]
+
+═══════════════════════════════════════════════════════════════════════════════
+🎯 O QUE FAZER - PASSO-A-PASSO
+═══════════════════════════════════════════════════════════════════════════════
+
+OPÇÃO 1: DEPLOY AUTOMÁTICO (Recomendado - 5 minutos)
+───────────────────────────────────────────────────
+$ chmod +x scripts/initial-deploy.sh
+$ ./scripts/initial-deploy.sh
+
+Se tudo correr bem, o deploy estará completo em ~30-45 minutos.
+
+OPÇÃO 2: DEPLOY MANUAL (Detalhado - 45 minutos)
+───────────────────────────────────────────────
+Seguir o arquivo DEPLOYMENT_STEP1.md fase por fase.
+
+OPÇÃO 3: DEPLOY CUSTOMIZADO (Flexível)
+───────────────────────────────────────────────
+Usar comandos do DEPLOYMENT_QUICK_REFERENCE.md conforme necessário.
+
+═══════════════════════════════════════════════════════════════════════════════
+✅ CHECKLIST PRÉ-DEPLOYMENT
+═══════════════════════════════════════════════════════════════════════════════
+
+LOCAL:
+  [ ] Node 18+ instalado (node --version)
+  [ ] npm instalado (npm --version)
+  [ ] Git configurado (git config --global user.name)
+  [ ] Repositório clonado (git clone)
+  [ ] Dependências instaladas (npm install)
+  [ ] Testes passando localmente (npm run test)
+  [ ] Frontend faz build (npm run build)
+
+VPS (187.77.51.167):
+  [ ] SSH acesso funcionando
+  [ ] Node 18+ instalado
+  [ ] PM2 instalado globalmente
+  [ ] Nginx instalado
+  [ ] SSL certificado (Let's Encrypt)
+  [ ] Firewall configurado (ports 22, 80, 443)
+  [ ] Diretórios criados (/var/www/condoplus)
+  [ ] User deploy com sudo access
+
+GitHub:
+  [ ] Secrets configurados (VPS_HOST, VPS_SSH_KEY, etc)
+  [ ] SSH key adicionada ao authorized_keys
+  [ ] Branch protection ativo em 'main'
+
+═══════════════════════════════════════════════════════════════════════════════
+📊 ESTRUTURA DO DEPLOYMENT
+═══════════════════════════════════════════════════════════════════════════════
+
+FASE 1: PREPARAÇÃO LOCAL
+  ├─ Clonar repositório
+  ├─ Instalar dependências
+  ├─ Rodar testes
+  └─ Build frontend
+
+FASE 2: PREPARAÇÃO VPS
+  ├─ Verificar SSH acesso
+  ├─ Verificar Node/PM2/Nginx
+  ├─ Criar diretórios
+  ├─ Inicializar git repo
+  └─ Criar .env e banco de dados
+
+FASE 3: DEPLOY BACKEND
+  ├─ Copiar código (SCP)
+  ├─ npm install --production
+  ├─ Criar ecosystem.config.js
+  ├─ pm2 start condoplus-api
+  └─ Health check API
+
+FASE 4: DEPLOY FRONTEND
+  ├─ Copiar build (SCP)
+  ├─ Verificar index.html
+  ├─ sudo nginx -t
+  ├─ sudo systemctl reload nginx
+  └─ Health check Frontend
+
+FASE 5: VERIFICAÇÃO PÓS-DEPLOY
+  ├─ Testar health endpoints
+  ├─ Testar HTTPS
+  ├─ Verificar logs
+  ├─ Testar banco de dados
+  └─ Teste de carga simples
+
+FASE 6: TESTES FUNCIONAIS
+  ├─ Abrir https://condoplus.com
+  ├─ Fazer login
+  ├─ Navegar features
+  └─ Verificar performance
+
+═══════════════════════════════════════════════════════════════════════════════
+🔄 COMMANDS IMPORTANTES
+═══════════════════════════════════════════════════════════════════════════════
+
+DEPLOYMENT:
+  chmod +x scripts/initial-deploy.sh
+  ./scripts/initial-deploy.sh --help
+  ./scripts/initial-deploy.sh --skip-tests
+  ./scripts/initial-deploy.sh --dry-run
+
+HEALTH CHECK:
+  chmod +x scripts/health-check.sh
+  ./scripts/health-check.sh
+
+SSH para VPS:
+  ssh ubuntu@187.77.51.167
+  ssh -i ~/.ssh/github_actions ubuntu@187.77.51.167
+
+SCP (copiar arquivos):
+  scp -r backend/* ubuntu@187.77.51.167:/var/www/condoplus/backend/
+  scp -r frontend/dist/* ubuntu@187.77.51.167:/var/www/condoplus/frontend/
+
+PM2:
+  pm2 status
+  pm2 logs condoplus-api
+  pm2 restart condoplus-api
+  pm2 stop condoplus-api
+
+Nginx:
+  sudo nginx -t
+  sudo systemctl reload nginx
+  sudo systemctl restart nginx
+
+Database:
+  sqlite3 /var/www/condoplus/data/condoplus.db
+  /var/www/condoplus/backup.sh
+
+═══════════════════════════════════════════════════════════════════════════════
+📊 EXPECTED OUTPUTS
+═══════════════════════════════════════════════════════════════════════════════
+
+Health Check Local (API):
+  GET http://127.0.0.1:5174/health
+  Status: 200 OK
+  Body: { "status": "ok", "uptime": 123.45 }
+
+Health Check Production (API):
+  GET https://api.condoplus.com/health
+  Status: 200 OK
+  Body: { "status": "ok", "uptime": 123.45 }
+
+Health Check Frontend:
+  GET https://condoplus.com
+  Status: 200 OK
+  Body: <!DOCTYPE html> <html>...</html>
+
+PM2 Status:
+  Online 1 instance (condoplus-api)
+
+Nginx Status:
+  Active (running)
+
+═══════════════════════════════════════════════════════════════════════════════
+⚠️ CUIDADOS IMPORTANTES
+═══════════════════════════════════════════════════════════════════════════════
+
+❗ NÃO fazer deployment se:
+  • Testes estão falhando localmente
+  • SSH acesso não está funcionando
+  • Certificado SSL não está válido
+  • Espaço em disco < 5GB
+  • Node version < 18
+
+⚠️  Considerar fazer backup ANTES de deployment:
+  • Banco de dados atual (se existir)
+  • Configurações do Nginx
+  • Chaves SSH
+
+🔒 SEGURANÇA:
+  • NÃO fazer commit de .env em Git
+  • NÃO compartilhar VPS_SSH_KEY
+  • NÃO usar senhas fracas em JWT_SECRET
+  • Manter SSL certificado atualizado
+
+═══════════════════════════════════════════════════════════════════════════════
+🐛 TROUBLESHOOTING RÁPIDO
+═══════════════════════════════════════════════════════════════════════════════
+
+Problema: "Connection refused" na porta 5174
+  → pm2 status
+  → pm2 logs condoplus-api
+  → pm2 restart condoplus-api
+
+Problema: "Port already in use"
+  → sudo lsof -i :PORT
+  → kill -9 PID
+
+Problema: "Permission denied" no SCP
+  → Verificar SSH key
+  → Verificar permissões em /var/www/condoplus
+
+Problema: CORS bloqueando requisições
+  → Verificar CORS_ORIGIN em .env
+  → Deve ser igual ao frontend URL
+  → Reiniciar API: pm2 restart condoplus-api
+
+Problema: Database locked
+  → pm2 stop condoplus-api
+  → sleep 5
+  → pm2 start condoplus-api
+
+═══════════════════════════════════════════════════════════════════════════════
+✅ SUCESSO! O QUE FAZER DEPOIS?
+═══════════════════════════════════════════════════════════════════════════════
+
+Se o deployment foi bem-sucesso:
+
+1. TESTES FUNCIONAIS (10 minutos)
+   ├─ Abrir https://condoplus.com
+   ├─ Fazer login
+   ├─ Testar fluxos principais
+   └─ Verificar performance
+
+2. MONITORAMENTO (Step 2)
+   ├─ Configurar Prometheus
+   ├─ Setup Grafana dashboard
+   ├─ Configurar alertas
+   └─ Centralizar logs
+
+3. STATUS PAGE (Step 3)
+   ├─ Criar health check endpoints
+   ├─ Setup status page
+   └─ Uptime monitoring
+
+═══════════════════════════════════════════════════════════════════════════════
+📚 REFERÊNCIAS
+═══════════════════════════════════════════════════════════════════════════════
+
+Arquivos principais:
+  • DEPLOYMENT_STEP1.md         ← Guia detalhado
+  • DEPLOYMENT_QUICK_REFERENCE.md ← Referência rápida
+  • VPS_DEPLOYMENT_SETUP.md     ← Setup do VPS (já pronto)
+  • scripts/health-check.sh     ← Verificação automática
+  • scripts/initial-deploy.sh   ← Deploy automático
+
+Comandos úteis:
+  • ./scripts/initial-deploy.sh --help
+  • ./scripts/health-check.sh
+  • grep -r "DEPLOY" *.md
+
+═══════════════════════════════════════════════════════════════════════════════
+🎉 STATUS FINAL
+═══════════════════════════════════════════════════════════════════════════════
+
+FASE 7 - STEP 1: DEPLOYMENT INICIAL
+Status: ✅ PRONTO PARA EXECUÇÃO
+
+Arquivos:       4 criados
+Documentação:   300+ linhas
+Scripts:        2 automáticos
+Coverage:       Backend + Frontend + Verificação
+
+Próximo Step:   MONITORAMENTO EM TEMPO REAL
+
+═══════════════════════════════════════════════════════════════════════════════
+
+Data: 2026-03-27
+Versão: 1.0
+Pronto para começar! 🚀

@@ -1,0 +1,39 @@
+{
+  "name": "condoplus-frontend",
+  "version": "0.1.0",
+  "type": "module",
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.18.0",
+    "axios": "^1.6.0",
+    "date-fns": "^2.30.0",
+    "lucide-react": "^0.294.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.1.0",
+    "@testing-library/react": "^14.0.0",
+    "@testing-library/jest-dom": "^6.1.4",
+    "@testing-library/user-event": "^14.5.1",
+    "@playwright/test": "^1.40.0",
+    "vitest": "^0.34.0",
+    "vite": "^5.0.0",
+    "eslint": "^8.53.0",
+    "eslint-plugin-react": "^7.33.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint src --ext .js,.jsx",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:codegen": "playwright codegen http://localhost:5173",
+    "test:all": "npm run test && npm run test:e2e"
+  }
+}
