@@ -1,5 +1,5 @@
 const { google } = require('googleapis');
-const { getCondoPool } = require('./database');
+const { getCondoPool } = require('../config/database');
 
 class CalendarService {
   constructor() {

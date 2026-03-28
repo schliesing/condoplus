@@ -1,6 +1,6 @@
 const twilio = require('twilio');
 const sgMail = require('@sendgrid/mail');
-const { getCondoPool } = require('./database');
+const { getCondoPool } = require('../config/database');
 
 class NotificationSender {
   constructor() {
