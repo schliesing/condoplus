@@ -2,7 +2,7 @@ const express = require('express');
 const { authenticateToken, authorize } = require('../middleware/auth');
 const { getCondoPool } = require('../config/database');
 const auditService = require('../services/auditLogs');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 const router = express.Router();
 
