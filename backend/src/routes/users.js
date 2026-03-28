@@ -1,7 +1,7 @@
 const express = require('express');
-const { authenticateToken, authorizeRole } = require('../middleware/auth');
-const { getCondoPool } = require('../services/database');
-const auditService = require('../services/audit');
+const { authenticateToken, authorize } = require('../middleware/auth');
+const { getCondoPool } = require('../config/database');
+const auditService = require('../services/auditLogs');
 const bcrypt = require('bcrypt');
 
 const router = express.Router();
@@ -28,7 +28,7 @@ router.get('/me', authenticateToken, async (req, res) => {
 });
 
 // GET /api/users - List all users (admin only)
-router.get('/', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+router.get('/', authenticateToken, authorize('admin'), async (req, res) => {
   try {
     const { condoSchema } = req;
     const pool = getCondoPool();
@@ -153,7 +153,7 @@ router.put('/:id/password', authenticateToken, async (req, res) => {
 });
 
 // DELETE /api/users/:id - Deactivate user (admin only)
-router.delete('/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+router.delete('/:id', authenticateToken, authorize('admin'), async (req, res) => {
   try {
     const { condoSchema, user } = req;
     const { id } = req.params;

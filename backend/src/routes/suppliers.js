@@ -1,8 +1,8 @@
 const express = require('express');
-const { authenticateToken, authorizeRole } = require('../middleware/auth');
-const { getCondoPool } = require('../services/database');
+const { authenticateToken, authorize } = require('../middleware/auth');
+const { getCondoPool } = require('../config/database');
 const suppliersService = require('../services/suppliers');
-const auditService = require('../services/audit');
+const auditService = require('../services/auditLogs');
 
 const router = express.Router();
 
@@ -68,7 +68,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
  * Accessible to: Morador users
  * Payload: { nome, categoria, descricao, telefone, email, endereco }
  */
-router.post('/', authenticateToken, authorizeRole(['morador']), async (req, res) => {
+router.post('/', authenticateToken, authorize('morador'), async (req, res) => {
   try {
     const { condoSchema, user } = req;
     const { nome, categoria, descricao, telefone, email, endereco } = req.body;
@@ -128,7 +128,7 @@ router.post('/', authenticateToken, authorizeRole(['morador']), async (req, res)
  * Accessible to: Admin users only
  * Payload: { numero_nota, data_emissao, valor, descricao, arquivo_url }
  */
-router.post('/:id/notas', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+router.post('/:id/notas', authenticateToken, authorize('admin'), async (req, res) => {
   try {
     const { condoSchema, user } = req;
     const { id } = req.params;
@@ -224,7 +224,7 @@ router.get('/:id/notas', authenticateToken, async (req, res) => {
  * Accessible to: Admin users only
  * Note: Prevents deletion if supplier has associated invoices
  */
-router.delete('/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+router.delete('/:id', authenticateToken, authorize('admin'), async (req, res) => {
   try {
     const { condoSchema, user } = req;
     const { id } = req.params;

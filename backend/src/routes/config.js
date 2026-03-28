@@ -1,7 +1,7 @@
 const express = require('express');
-const { authenticateToken, authorizeRole } = require('../middleware/auth');
-const { getCondoPool } = require('../services/database');
-const auditService = require('../services/audit');
+const { authenticateToken, authorize } = require('../middleware/auth');
+const { getCondoPool } = require('../config/database');
+const auditService = require('../services/auditLogs');
 
 const router = express.Router();
 
@@ -41,7 +41,7 @@ router.get('/:chave', authenticateToken, async (req, res) => {
 });
 
 // PUT /api/config/:chave - Update configuration (admin only)
-router.put('/:chave', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+router.put('/:chave', authenticateToken, authorize('admin'), async (req, res) => {
   try {
     const { condoSchema, user } = req;
     const { chave } = req.params;

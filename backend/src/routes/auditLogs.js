@@ -1,11 +1,11 @@
 const express = require('express');
-const { authenticateToken, authorizeRole } = require('../middleware/auth');
-const { getCondoPool } = require('../services/database');
+const { authenticateToken, authorize } = require('../middleware/auth');
+const { getCondoPool } = require('../config/database');
 
 const router = express.Router();
 
 // GET /api/audit-logs - List audit logs (admin only)
-router.get('/', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+router.get('/', authenticateToken, authorize('admin'), async (req, res) => {
   try {
     const { condoSchema } = req;
     const { limit = 100, offset = 0, acao, entidade_tipo, usuario_id } = req.query;
@@ -77,7 +77,7 @@ router.get('/', authenticateToken, authorizeRole(['admin']), async (req, res) =>
 });
 
 // GET /api/audit-logs/:id - Get specific audit log
-router.get('/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+router.get('/:id', authenticateToken, authorize('admin'), async (req, res) => {
   try {
     const { condoSchema } = req;
     const { id } = req.params;
@@ -100,7 +100,7 @@ router.get('/:id', authenticateToken, authorizeRole(['admin']), async (req, res)
 });
 
 // GET /api/audit-logs/user/:usuario_id - Get logs for specific user
-router.get('/user/:usuario_id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+router.get('/user/:usuario_id', authenticateToken, authorize('admin'), async (req, res) => {
   try {
     const { condoSchema } = req;
     const { usuario_id } = req.params;
@@ -128,7 +128,7 @@ router.get('/user/:usuario_id', authenticateToken, authorizeRole(['admin']), asy
 });
 
 // GET /api/audit-logs/entity/:entidade_tipo/:entidade_id - Get logs for specific entity
-router.get('/entity/:entidade_tipo/:entidade_id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+router.get('/entity/:entidade_tipo/:entidade_id', authenticateToken, authorize('admin'), async (req, res) => {
   try {
     const { condoSchema } = req;
     const { entidade_tipo, entidade_id } = req.params;

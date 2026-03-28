@@ -1,6 +1,6 @@
 const express = require('express');
 const { authenticateToken } = require('../middleware/auth');
-const { getCondoPool } = require('../services/database');
+const { getCondoPool } = require('../config/database');
 const notificationsService = require('../services/notifications');
 const notificationSender = require('../services/notification-sender');
 
