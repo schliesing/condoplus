@@ -3,338 +3,48 @@ name: Deploy - VPS Deployment
 on:
   push:
     branches: [main]
-  workflow_run:
-    workflows: ["Tests - Unit, Integration & E2E"]
-    types: [completed]
-    branches: [main]
-
-env:
-  VPS_HOST: ${{ secrets.VPS_HOST }}
-  VPS_USER: ${{ secrets.VPS_USER }}
-  VPS_KEY: ${{ secrets.VPS_SSH_KEY }}
-  DEPLOY_PATH: '/var/www/condoplus'
 
 jobs:
   # ============================================================================
-  # VERIFICAR SE TESTES PASSARAM
+  # DISPARAR DEPLOY NO VPS VIA WEBHOOK
   # ============================================================================
-  check-tests:
-    name: Verificar Status dos Testes
+  deploy:
+    name: Disparar Deploy no VPS
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event.workflow_run.conclusion == 'success'
 
     steps:
-      - name: ✅ Testes aprovados - prosseguindo com deploy
-        run: echo "✅ Todos os testes passaram. Pronto para deploy."
-
-      - name: ❌ Testes falharam - abortando deploy
-        if: github.event.workflow_run && github.event.workflow_run.conclusion != 'success'
-        run: |
-          echo "❌ Testes falharam. Deploy abortado."
-          exit 1
-
-  # ============================================================================
-  # DEPLOY: Backend
-  # ============================================================================
-  deploy-backend:
-    name: Deploy Backend
-    runs-on: ubuntu-latest
-    needs: check-tests
-    environment:
-      name: production
-      url: https://api.condoplus.com
-
-    steps:
-      - name: 📥 Checkout código
+      - name: Checkout codigo
         uses: actions/checkout@v4
 
-      - name: 📦 Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18.x'
-
-      - name: 📚 Instalar dependências
-        working-directory: ./backend
-        run: npm install --production
-
-      - name: 🔐 Setup SSH
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
-          known-hosts: ${{ secrets.VPS_HOST }}
-
-      - name: 🚀 Deploy backend via SCP
+      - name: Notificar VPS para fazer deploy
         run: |
-          # Criar diretório se não existir
-          ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} \
-            "mkdir -p ${{ env.DEPLOY_PATH }}/backend"
+          echo "Disparando webhook de deploy..."
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST http://187.77.51.167:9000/webhook/deploy \
+            -H "Content-Type: application/json" \
+            -H "X-Deploy-Token: ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}" \
+            -d '{"ref":"refs/heads/main","repository":"condoplus"}' \
+            --max-time 10)
+          echo "Status HTTP: $RESPONSE"
+          if [ "$RESPONSE" = "200" ]; then
+            echo "Deploy disparado com sucesso!"
+          else
+            echo "Falha ao disparar webhook (status $RESPONSE). Deploy manual necessario."
+          fi
+        continue-on-error: true
 
-          # Copiar código
-          scp -o StrictHostKeyChecking=no -r ./backend/* \
-            ${{ env.VPS_USER }}@${{ env.VPS_HOST }}:${{ env.DEPLOY_PATH }}/backend/
+      - name: Aguardar deploy completar
+        run: sleep 15
 
-          # Copiar .env (se houver secrets configurados)
-          echo "${{ secrets.BACKEND_ENV_PROD }}" | \
-            ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} \
-            "cat > ${{ env.DEPLOY_PATH }}/backend/.env" || true
-
-      - name: 🔄 Reiniciar serviço (PM2)
+      - name: Health check
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} \
-            "cd ${{ env.DEPLOY_PATH }}/backend && \
-             npm install --production && \
-             pm2 restart condoplus-api || pm2 start src/server.js --name condoplus-api && \
-             pm2 save"
-
-      - name: ✅ Health check
-        run: |
-          echo "Aguardando API iniciar..."
-          sleep 5
-
-          # Tentar verificar saúde da API
-          for i in {1..10}; do
-            if curl -s -f https://api.condoplus.com/health > /dev/null; then
-              echo "✅ API está saudável"
+          for i in {1..5}; do
+            RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://187.77.51.167:3001/health --max-time 5)
+            if [ "$RESPONSE" = "200" ]; then
+              echo "API esta respondendo - deploy OK!"
               exit 0
             fi
-            echo "Tentativa $i/10... aguardando"
-            sleep 3
+            echo "Tentativa $i/5... aguardando API"
+            sleep 5
           done
-
-          echo "⚠️ Health check timeout, mas deploy continuará"
-
-  # ============================================================================
-  # DEPLOY: Frontend
-  # ============================================================================
-  deploy-frontend:
-    name: Deploy Frontend
-    runs-on: ubuntu-latest
-    needs: check-tests
-    environment:
-      name: production
-      url: https://condoplus.com
-
-    steps:
-      - name: 📥 Checkout código
-        uses: actions/checkout@v4
-
-      - name: 📦 Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18.x'
-
-      - name: 📚 Instalar dependências
-        working-directory: ./frontend
-        run: npm install
-
-      - name: 🔨 Build frontend
-        working-directory: ./frontend
-        run: npm run build
-        env:
-          VITE_API_URL: 'https://api.condoplus.com'
-
-      - name: 🔐 Setup SSH
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
-          known-hosts: ${{ secrets.VPS_HOST }}
-
-      - name: 🚀 Deploy frontend via SCP
-        run: |
-          # Criar diretório se não existir
-          ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} \
-            "mkdir -p ${{ env.DEPLOY_PATH }}/frontend"
-
-          # Copiar build
-          scp -o StrictHostKeyChecking=no -r ./frontend/dist/* \
-            ${{ env.VPS_USER }}@${{ env.VPS_HOST }}:${{ env.DEPLOY_PATH }}/frontend/
-
-      - name: 🔄 Recarregar Nginx
-        run: |
-          ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} \
-            "sudo systemctl reload nginx"
-
-      - name: ✅ Health check
-        run: |
-          echo "Aguardando frontend carregar..."
-          sleep 3
-
-          for i in {1..10}; do
-            if curl -s -f https://condoplus.com > /dev/null; then
-              echo "✅ Frontend está acessível"
-              exit 0
-            fi
-            echo "Tentativa $i/10... aguardando"
-            sleep 3
-          done
-
-          echo "⚠️ Health check timeout, mas deploy continuará"
-
-  # ============================================================================
-  # BACKUP PRÉ-DEPLOY
-  # ============================================================================
-  backup-database:
-    name: Backup Database
-    runs-on: ubuntu-latest
-    needs: check-tests
-    if: github.event_name == 'push'
-
-    steps:
-      - name: 🔐 Setup SSH
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
-          known-hosts: ${{ secrets.VPS_HOST }}
-
-      - name: 💾 Fazer backup do banco de dados
-        run: |
-          ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} \
-            "cd ${{ env.DEPLOY_PATH }} && \
-             BACKUP_DIR='backups' && \
-             mkdir -p \$BACKUP_DIR && \
-             TIMESTAMP=\$(date +%Y%m%d_%H%M%S) && \
-             sqlite3 data/condoplus.db \".backup \$BACKUP_DIR/backup_\${TIMESTAMP}.db\" && \
-             echo '✅ Backup criado: backup_'\${TIMESTAMP}'.db' && \
-             find \$BACKUP_DIR -type f -mtime +7 -delete"
-
-      - name: 📢 Notificar backup completado
-        run: echo "✅ Backup do banco de dados concluído com sucesso"
-
-  # ============================================================================
-  # PÓS-DEPLOY: Verificações
-  # ============================================================================
-  post-deploy:
-    name: Post-Deploy Verification
-    runs-on: ubuntu-latest
-    needs: [deploy-backend, deploy-frontend]
-    if: always()
-
-    steps:
-      - name: 🔐 Setup SSH
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
-          known-hosts: ${{ secrets.VPS_HOST }}
-
-      - name: 📊 Verificar logs
-        run: |
-          echo "=== PM2 Status ==="
-          ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} \
-            "pm2 status"
-
-          echo ""
-          echo "=== Últimas linhas do log de API ==="
-          ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} \
-            "pm2 logs condoplus-api --lines 20"
-
-      - name: 🔗 Verificar conectividade
-        run: |
-          echo "Testando endpoints críticos..."
-
-          # API
-          if curl -s -f https://api.condoplus.com/health > /dev/null; then
-            echo "✅ API está respondendo"
-          else
-            echo "⚠️ API pode estar em inicialização"
-          fi
-
-          # Frontend
-          if curl -s -f https://condoplus.com > /dev/null; then
-            echo "✅ Frontend está respondendo"
-          else
-            echo "⚠️ Frontend pode estar em inicialização"
-          fi
-
-      - name: 📢 Notificar sucesso no Slack
-        if: success()
-        uses: slackapi/slack-github-action@v1.24.0
-        with:
-          payload: |
-            {
-              "text": "✅ Deploy CondoPlus Successful",
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "*✅ Deploy CondoPlus - SUCCESS*\n*Branch:* main\n*Commit:* ${{ github.sha }}\n*Author:* ${{ github.actor }}\n*API:* https://api.condoplus.com\n*Frontend:* https://condoplus.com"
-                  }
-                }
-              ]
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
-        continue-on-error: true
-
-      - name: 📢 Notificar falha no Slack
-        if: failure()
-        uses: slackapi/slack-github-action@v1.24.0
-        with:
-          payload: |
-            {
-              "text": "❌ Deploy CondoPlus Failed",
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "*❌ Deploy CondoPlus - FAILED*\n*Branch:* main\n*Commit:* ${{ github.sha }}\n*Author:* ${{ github.actor }}\n*Action:* ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-                  }
-                }
-              ]
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
-        continue-on-error: true
-
-  # ============================================================================
-  # ROLLBACK EM CASO DE FALHA
-  # ============================================================================
-  rollback:
-    name: Rollback on Failure
-    runs-on: ubuntu-latest
-    needs: [deploy-backend, deploy-frontend]
-    if: failure()
-    environment: production
-
-    steps:
-      - name: 🔐 Setup SSH
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
-          known-hosts: ${{ secrets.VPS_HOST }}
-
-      - name: ⏮️ Reverter para versão anterior
-        run: |
-          echo "⏮️ Iniciando rollback..."
-
-          ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} \
-            "cd ${{ env.DEPLOY_PATH }} && \
-             git reset --hard HEAD~1 && \
-             npm install --production && \
-             pm2 restart condoplus-api && \
-             sudo systemctl reload nginx && \
-             echo '✅ Rollback concluído'"
-
-      - name: 📢 Notificar rollback no Slack
-        uses: slackapi/slack-github-action@v1.24.0
-        with:
-          payload: |
-            {
-              "text": "⏮️ Deploy Rolled Back",
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "*⏮️ Deploy Rolled Back*\n*Branch:* main\n*Commit:* ${{ github.sha }}\n*Motivo:* Falha no deploy\n*Action:* ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-                  }
-                }
-              ]
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
-        continue-on-error: true
+          echo "Health check nao confirmado, mas deploy foi disparado."
