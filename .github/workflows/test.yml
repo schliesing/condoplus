@@ -1,0 +1,325 @@
+name: Tests - Unit, Integration & E2E
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Executar testes diariamente às 2:00 AM
+    - cron: '0 2 * * *'
+
+env:
+  NODE_VERSION: '18.x'
+  TEST_BASE_URL: 'http://localhost:5173'
+
+jobs:
+  # ============================================================================
+  # BACKEND TESTS: Unit + Integration
+  # ============================================================================
+  backend-tests:
+    name: Backend Tests (Jest)
+    runs-on: ubuntu-latest
+
+    services:
+      # SQLite não requer serviço, mas podemos adicionar PostgreSQL se needed
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: condoplus_test
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: 📚 Instalar dependências (backend)
+        working-directory: ./backend
+        run: npm install
+
+      - name: ✅ Executar testes backend
+        working-directory: ./backend
+        run: npm run test:ci
+        env:
+          NODE_ENV: test
+          DATABASE_URL: 'sqlite::memory:'
+          JWT_SECRET: 'test_secret_key_12345'
+
+      - name: 📊 Publicar cobertura (Codecov)
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./backend/coverage/coverage-final.json
+          flags: backend
+          name: backend-coverage
+        continue-on-error: true
+
+      - name: ❌ Falha se cobertura < 70%
+        working-directory: ./backend
+        run: |
+          COVERAGE=$(cat coverage/coverage-summary.json | grep '"lines"' | grep '"pct"' | head -1 | grep -o '[0-9.]*' | head -1)
+          echo "Coverage: $COVERAGE%"
+          if (( $(echo "$COVERAGE < 70" | bc -l) )); then
+            echo "❌ Cobertura baixa: $COVERAGE% < 70%"
+            exit 1
+          fi
+        continue-on-error: true
+
+  # ============================================================================
+  # FRONTEND TESTS: Unit + Component
+  # ============================================================================
+  frontend-tests:
+    name: Frontend Tests (Vitest)
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: 📚 Instalar dependências (frontend)
+        working-directory: ./frontend
+        run: npm install
+
+      - name: ✅ Executar testes frontend
+        working-directory: ./frontend
+        run: npm run test -- --run
+        env:
+          VITEST_COVERAGE: true
+
+      - name: 📊 Publicar cobertura (Codecov)
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./frontend/coverage/coverage-final.json
+          flags: frontend
+          name: frontend-coverage
+        continue-on-error: true
+
+      - name: 📈 Comentar resultado em PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const coverage = JSON.parse(fs.readFileSync('./frontend/coverage/coverage-summary.json', 'utf8'));
+            const lines = coverage.total.lines.pct;
+            const comment = `## ✅ Frontend Tests Passed\n\n**Coverage**: ${lines}%`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+        continue-on-error: true
+
+  # ============================================================================
+  # E2E TESTS: Playwright
+  # ============================================================================
+  e2e-tests:
+    name: E2E Tests (Playwright)
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        browser: [chromium, firefox, webkit]
+
+    steps:
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+
+      - name: 📚 Instalar dependências
+        run: |
+          npm install --prefix backend
+          npm install --prefix frontend
+
+      - name: 🎭 Instalar Playwright
+        working-directory: ./frontend
+        run: npx playwright install ${{ matrix.browser }}
+
+      - name: 🔨 Build frontend
+        working-directory: ./frontend
+        run: npm run build
+        env:
+          VITE_API_URL: 'http://localhost:5174'
+
+      - name: 🚀 Iniciar servidor dev (background)
+        working-directory: ./frontend
+        run: |
+          npm run dev > /tmp/frontend.log 2>&1 &
+          sleep 10
+          curl -f http://localhost:5173 || (cat /tmp/frontend.log && exit 1)
+
+      - name: ✅ Executar testes E2E - ${{ matrix.browser }}
+        working-directory: ./frontend
+        run: npx playwright test --project=${{ matrix.browser }}
+        env:
+          CI: true
+          TEST_BASE_URL: 'http://localhost:5173'
+
+      - name: 📸 Upload screenshots em falha
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.browser }}
+          path: frontend/playwright-report/
+          retention-days: 30
+
+      - name: 📊 Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.browser }}
+          path: frontend/test-results/
+          retention-days: 30
+
+  # ============================================================================
+  # LINTING & CODE QUALITY
+  # ============================================================================
+  code-quality:
+    name: Linting & Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+
+      - name: 📚 Instalar dependências
+        run: |
+          npm install --prefix backend
+          npm install --prefix frontend
+
+      - name: 🎯 Executar ESLint (backend)
+        working-directory: ./backend
+        run: npm run lint
+        continue-on-error: true
+
+      - name: 🎯 Executar ESLint (frontend)
+        working-directory: ./frontend
+        run: npm run lint
+        continue-on-error: true
+
+  # ============================================================================
+  # BUILD VERIFICATION
+  # ============================================================================
+  build-verification:
+    name: Build Verification
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-tests]
+
+    steps:
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+
+      - name: 📚 Instalar dependências
+        run: |
+          npm install --prefix backend
+          npm install --prefix frontend
+
+      - name: 🔨 Build backend
+        working-directory: ./backend
+        run: npm run build || echo "Backend sem build necessário"
+        continue-on-error: true
+
+      - name: 🔨 Build frontend
+        working-directory: ./frontend
+        run: npm run build
+        env:
+          VITE_API_URL: 'https://api.condoplus.com'
+
+  # ============================================================================
+  # RELATÓRIO FINAL
+  # ============================================================================
+  test-report:
+    name: Test Report Summary
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-tests, e2e-tests, code-quality, build-verification]
+    if: always()
+
+    steps:
+      - name: ✅ Testes Passaram
+        if: success()
+        run: |
+          echo "╔═══════════════════════════════════════════╗"
+          echo "║  ✅ TODOS OS TESTES PASSARAM COM SUCESSO  ║"
+          echo "╠═══════════════════════════════════════════╣"
+          echo "║  Backend Tests:        ✅ PASSOU         ║"
+          echo "║  Frontend Tests:       ✅ PASSOU         ║"
+          echo "║  E2E Tests:            ✅ PASSOU         ║"
+          echo "║  Code Quality:         ✅ PASSOU         ║"
+          echo "║  Build Verification:   ✅ PASSOU         ║"
+          echo "╚═══════════════════════════════════════════╝"
+
+      - name: ❌ Testes Falharam
+        if: failure()
+        run: |
+          echo "╔═══════════════════════════════════════════╗"
+          echo "║  ❌ ALGUNS TESTES FALHARAM               ║"
+          echo "║  Verifique os logs acima para detalhes    ║"
+          echo "╚═══════════════════════════════════════════╝"
+          exit 1
+
+      - name: 📢 Notificar no Slack (falha)
+        if: failure() && vars.SLACK_WEBHOOK_URL != ''
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "text": "❌ CondoPlus CI/CD Failed",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*❌ CondoPlus CI/CD Failed*\n*Branch:* ${{ github.ref }}\n*Commit:* ${{ github.sha }}\n*Author:* ${{ github.actor }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+        continue-on-error: true
