@@ -60,7 +60,7 @@ async function injectCondoSchema(req, res, next) {
 /**
  * Middleware: Registrar ação em audit log
  */
-async function logAuditAction(tabela, acao) {
+function logAuditAction(tabela, acao) {
   return async (req, res, next) => {
     res.on('finish', async () => {
       if (req.user && req.condoSchema && res.statusCode < 400) {
